@@ -4,7 +4,7 @@ import { ImageIcon, Download, Send, RefreshCw, Trash2, AlertCircle } from 'lucid
 // ==========================================
 // AGREGA TU API KEY AQUÍ
 // ==========================================
-const GEMINI_API_KEY = "AGREGA TU API KEY AQUÍ";
+const GEMINI_API_KEY = "AIzaSyARHFo87Vegeudk00SA5TrPggl4aeEbHqw";
 
 const App = () => {
   const [prompt, setPrompt] = useState('');
@@ -14,7 +14,7 @@ const App = () => {
 
   const generateImage = async (retryCount = 0) => {
     if (!prompt.trim()) return;
-    if (GEMINI_API_KEY === "AGREGA TU API KEY AQUÍ" || !GEMINI_API_KEY) {
+    if (GEMINI_API_KEY === "AIzaSyARHFo87Vegeudk00SA5TrPggl4aeEbHqw" || !GEMINI_API_KEY) {
       setError("Error: No has configurado la API Key en el código fuente.");
       return;
     }
