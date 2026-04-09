@@ -277,6 +277,44 @@
             background-position: right 1rem center;
             background-size: 1em;
         }
+        .character-selector {
+            width: min(100%, 460px);
+            min-height: 44px;
+            border-radius: 14px;
+            border: 1px solid rgba(103, 232, 249, 0.5);
+            background-color: rgba(15, 23, 42, 0.96);
+            color: #f8fafc;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            padding: 0.65rem 2.75rem 0.65rem 0.9rem;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.08),
+                0 0 0 1px rgba(8, 47, 73, 0.35),
+                0 10px 24px rgba(2, 6, 23, 0.5);
+        }
+        .character-selector:hover {
+            border-color: rgba(34, 211, 238, 0.75);
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.12),
+                0 0 0 1px rgba(34, 211, 238, 0.35),
+                0 0 16px rgba(34, 211, 238, 0.22);
+        }
+        .character-selector:focus {
+            outline: none;
+            border-color: rgba(103, 232, 249, 0.95);
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.14),
+                0 0 0 2px rgba(34, 211, 238, 0.4),
+                0 0 22px rgba(34, 211, 238, 0.28);
+        }
+        .character-selector option {
+            background: #0f172a;
+            color: #e2e8f0;
+            font-weight: 700;
+        }
+        .character-selector option:disabled {
+            color: #94a3b8;
+        }
 
         .btn-metal {
             --btn-metal-top: #4b5563;
