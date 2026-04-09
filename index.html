@@ -1517,6 +1517,7 @@
             const [galleryViewMode, setGalleryViewMode] = useState('PERSONAJE');
             const [selectedGalleryIndex, setSelectedGalleryIndex] = useState(null);
             const [selectedGalleryBucket, setSelectedGalleryBucket] = useState(null);
+            const [selectedCharacterBucketIds, setSelectedCharacterBucketIds] = useState([]);
             const [isGalleryPlaying, setIsGalleryPlaying] = useState(false);
             const [isGalleryRandom, setIsGalleryRandom] = useState(false);
             const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -1992,13 +1993,22 @@ const getInitialCatFormData = () => ({
                 if (!selectedGalleryBucket) return null;
                 return galleryBuckets.find(bucket => bucket.id === selectedGalleryBucket.id) || null;
             }, [galleryBuckets, selectedGalleryBucket, galleryViewMode]);
-            const sourceGalleryPhotos = activeGalleryBucket?.photos || allGalleryPhotos;
+            const selectedCharacterBuckets = useMemo(() => {
+                if (galleryViewMode !== 'PERSONAJE') return [];
+                return galleryBuckets.filter((bucket) => selectedCharacterBucketIds.includes(bucket.id));
+            }, [galleryBuckets, galleryViewMode, selectedCharacterBucketIds]);
+            const sourceGalleryPhotos = useMemo(() => {
+                if (galleryViewMode === 'PERSONAJE') {
+                    return selectedCharacterBuckets.flatMap((bucket) => bucket.photos || []);
+                }
+                return activeGalleryBucket?.photos || allGalleryPhotos;
+            }, [galleryViewMode, selectedCharacterBuckets, activeGalleryBucket, allGalleryPhotos]);
             const galleryStats = useMemo(() => {
                 return GALLERY_LABELS.reduce((acc, label) => {
                     acc[label] = sourceGalleryPhotos.filter(photo => photo.label === label).length;
                     return acc;
                 }, {});
-            }, [sourceGalleryPhotos, galleryViewMode]);
+            }, [sourceGalleryPhotos]);
             const filteredGalleryPhotos = useMemo(() => {
                 const query = searchQuery.trim().toLowerCase();
 
@@ -2019,6 +2029,10 @@ const getInitialCatFormData = () => ({
             }, [sourceGalleryPhotos, galleryFilterLabel, searchQuery]);
             const currentGalleryModeLabel = GALLERY_VIEW_MODE_LABELS[galleryViewMode] || galleryViewMode;
             const isGalleryBucketMode = galleryViewMode !== 'GENERAL';
+            const availableCharacterBuckets = useMemo(() => {
+                if (galleryViewMode !== 'PERSONAJE') return [];
+                return galleryBuckets.filter((bucket) => !selectedCharacterBucketIds.includes(bucket.id));
+            }, [galleryBuckets, galleryViewMode, selectedCharacterBucketIds]);
             const selectedGalleryPhoto = selectedGalleryIndex === null
                 ? null
                 : filteredGalleryPhotos[clampIndex(selectedGalleryIndex, filteredGalleryPhotos.length)] || null;
@@ -2033,6 +2047,7 @@ const getInitialCatFormData = () => ({
             useEffect(() => {
                 setSelectedGalleryBucket(null);
                 setSelectedGalleryIndex(null);
+                setSelectedCharacterBucketIds([]);
             }, [galleryViewMode]);
 
             useEffect(() => {
@@ -2108,12 +2123,31 @@ const getInitialCatFormData = () => ({
                 setSelectedGalleryIndex(index);
                 setIsGalleryPlaying(autoplay);
             };
+            const addCharacterToGallerySelection = (bucketId) => {
+                if (!bucketId) return;
+                setSelectedCharacterBucketIds((current) => current.includes(bucketId) ? current : [...current, bucketId]);
+                setSelectedGalleryIndex(null);
+            };
+            const removeCharacterFromGallerySelection = (bucketId) => {
+                if (!bucketId) return;
+                setSelectedCharacterBucketIds((current) => current.filter((id) => id !== bucketId));
+                setSelectedGalleryIndex(null);
+            };
             const closeGalleryViewer = () => {
                 setIsGalleryPlaying(false);
                 setSelectedGalleryIndex(null);
             };
             const showNextGalleryPhoto = () => setSelectedGalleryIndex((current) => getNextPlayableIndex(current, filteredGalleryPhotos, isGalleryRandom));
             const showPreviousGalleryPhoto = () => setSelectedGalleryIndex((current) => clampIndex((current ?? 0) - 1, filteredGalleryPhotos.length));
+            const galleryContextLabel = useMemo(() => {
+                if (galleryViewMode === 'PERSONAJE') {
+                    return selectedCharacterBuckets.length
+                        ? `${selectedCharacterBuckets.length} personaje${selectedCharacterBuckets.length > 1 ? 's' : ''} seleccionado${selectedCharacterBuckets.length > 1 ? 's' : ''}`
+                        : 'Sin personajes seleccionados';
+                }
+                if (activeGalleryBucket && isGalleryBucketMode) return activeGalleryBucket.nombre;
+                return currentGalleryModeLabel;
+            }, [galleryViewMode, selectedCharacterBuckets, activeGalleryBucket, isGalleryBucketMode, currentGalleryModeLabel]);
 
 const saveProfile = (e) => {
                 e.preventDefault();
@@ -2864,9 +2898,7 @@ const saveProfile = (e) => {
                 <div>
                     <h2 className="text-4xl font-black italic text-white uppercase tracking-tighter">Galería</h2>
                     <p className="text-xs font-bold text-[var(--metal-gold)] uppercase tracking-widest mt-1">
-                        {activeGalleryBucket && isGalleryBucketMode
-                            ? `Vista por ${currentGalleryModeLabel} · ${activeGalleryBucket.nombre}`
-                            : `Vista por ${currentGalleryModeLabel}`}
+                        {`Vista por ${currentGalleryModeLabel} · ${galleryContextLabel}`}
                     </p>
                 </div>
 
@@ -2903,7 +2935,7 @@ const saveProfile = (e) => {
                 </div>
             </div>
 
-            {isGalleryBucketMode && !activeGalleryBucket ? (
+            {galleryViewMode !== 'PERSONAJE' && isGalleryBucketMode && !activeGalleryBucket ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
                     {galleryBuckets.map(bucket => (
                         <button
@@ -2942,7 +2974,7 @@ const saveProfile = (e) => {
                 </div>
             ) : (
                 <>
-                    {isGalleryBucketMode && (
+                    {galleryViewMode !== 'PERSONAJE' && isGalleryBucketMode && (
                         <div className="flex items-center gap-3">
                             <button
                                 type="button"
@@ -2955,6 +2987,45 @@ const saveProfile = (e) => {
                                 <LucideIcon name="arrow-left" size={14} />
                                 Volver al índice
                             </button>
+                        </div>
+                    )}
+
+                    {galleryViewMode === 'PERSONAJE' && (
+                        <div className="space-y-4">
+                            <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                                <label htmlFor="galleryCharacterSelector" className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">Selector de personajes</label>
+                                <select
+                                    id="galleryCharacterSelector"
+                                    className="filter-select max-w-lg"
+                                    value=""
+                                    onChange={(event) => addCharacterToGallerySelection(event.target.value)}
+                                >
+                                    <option value="" disabled>{availableCharacterBuckets.length ? 'Seleccionar personaje…' : 'No hay más personajes disponibles'}</option>
+                                    {availableCharacterBuckets.map((bucket) => (
+                                        <option key={bucket.id} value={bucket.id}>
+                                            {bucket.nombre} · {bucket.photos.length} archivos
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            {selectedCharacterBuckets.length > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                    {selectedCharacterBuckets.map((bucket) => (
+                                        <button
+                                            key={bucket.id}
+                                            type="button"
+                                            onClick={() => removeCharacterFromGallerySelection(bucket.id)}
+                                            className="btn-metal btn-metal--silver inline-flex items-center gap-2 px-4 py-2 rounded-full text-[10px] text-slate-900"
+                                            title="Quitar personaje de la galería visible"
+                                        >
+                                            {bucket.nombre}
+                                            <LucideIcon name="x" size={12} />
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-xs text-slate-400">Seleccioná uno o más personajes para mostrar su multimedia en la galería.</p>
+                            )}
                         </div>
                     )}
 
