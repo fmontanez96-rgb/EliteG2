@@ -447,6 +447,13 @@
         const { useState, useEffect, useMemo, useRef } = React;
 
         const GALLERY_LABELS = ['C', 'P', 'B', 'N', 'S', 'E', 'X'];
+        const GALLERY_VIEW_MODES = ['PERSONAJE', 'ETIQUETA', 'CARPETA', 'GENERAL'];
+        const GALLERY_VIEW_MODE_LABELS = {
+            PERSONAJE: 'Personaje',
+            ETIQUETA: 'Etiqueta',
+            CARPETA: 'Carpeta',
+            GENERAL: 'General'
+        };
         const BATTLE_PHOTO_SLOTS = [
             { id: 'pechos', label: 'Pechos', labels: ['P'] },
             { id: 'colaPiernas', label: 'Cola/Piernas', labels: ['C'] },
@@ -1490,6 +1497,7 @@
             const [galleryLabel, setGalleryLabel] = useState(GALLERY_LABELS[0]);
             const [galleryMediaType, setGalleryMediaType] = useState('image');
             const [galleryFilterLabel, setGalleryFilterLabel] = useState('INICIAL');
+            const [galleryViewMode, setGalleryViewMode] = useState('PERSONAJE');
             const [selectedGalleryIndex, setSelectedGalleryIndex] = useState(null);
             const [selectedProfileIds, setSelectedProfileIds] = useState([]);
             const [gallerySelectionMode, setGallerySelectionMode] = useState('all');
@@ -1892,16 +1900,65 @@ const getInitialCatFormData = () => ({
                 });
             }, [perfiles]);
             const galleryBuckets = useMemo(() => {
-                const groupedByProfile = allGalleryPhotos.reduce((acc, photo) => {
-                    const key = photo.profileId || photo.nombre;
-                    if (!key) return acc;
+                if (galleryViewMode === 'GENERAL') {
+                    return [{
+                        id: 'GENERAL',
+                        nombre: 'General',
+                        profesion: 'Archivo global',
+                        nacionalidad: '',
+                        fotoPerfil: allGalleryPhotos[0]?.url || '',
+                        photos: allGalleryPhotos
+                    }];
+                }
+
+                if (galleryViewMode === 'PERSONAJE') {
+                    const groupedByProfile = allGalleryPhotos.reduce((acc, photo) => {
+                        const key = photo.profileId || photo.nombre;
+                        if (!key) return acc;
+                        if (!acc[key]) {
+                            acc[key] = {
+                                id: `PERSONAJE-${key}`,
+                                profileId: photo.profileId || null,
+                                nombre: photo.nombre || 'Sin nombre',
+                                profesion: photo.profesion || 'Perfil',
+                                nacionalidad: photo.nacionalidad || '',
+                                fotoPerfil: photo.fotoPerfil || photo.url,
+                                photos: []
+                            };
+                        }
+                        acc[key].photos.push(photo);
+                        return acc;
+                    }, {});
+
+                    return Object.values(groupedByProfile)
+                        .filter(bucket => bucket.photos.length > 0)
+                        .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+                }
+
+                if (galleryViewMode === 'ETIQUETA') {
+                    return GALLERY_LABELS
+                        .map((label) => {
+                            const labelPhotos = allGalleryPhotos.filter(photo => photo.label === label);
+                            return {
+                                id: `ETIQUETA-${label}`,
+                                nombre: `Etiqueta ${label}`,
+                                profesion: 'Archivo por etiqueta',
+                                nacionalidad: '',
+                                fotoPerfil: labelPhotos[0]?.url || '',
+                                photos: labelPhotos
+                            };
+                        })
+                        .filter(bucket => bucket.photos.length > 0);
+                }
+
+                const groupedByFolder = allGalleryPhotos.reduce((acc, photo) => {
+                    const key = String(photo.profesion || 'Sin carpeta');
                     if (!acc[key]) {
                         acc[key] = {
-                            id: key,
-                            profileId: photo.profileId || null,
-                            nombre: photo.nombre || 'Sin nombre',
-                            profesion: photo.profesion || 'Perfil',
-                            nacionalidad: photo.nacionalidad || '',
+                            id: `CARPETA-${key}`,
+                            nombre: key,
+                            profesion: 'Carpeta',
+                            nacionalidad: '',
                             fotoPerfil: photo.fotoPerfil || photo.url,
                             photos: []
                         };
@@ -1910,44 +1967,22 @@ const getInitialCatFormData = () => ({
                     return acc;
                 }, {});
 
-                const participantBuckets = Object.values(groupedByProfile)
+                return Object.values(groupedByFolder)
                     .filter(bucket => bucket.photos.length > 0)
                     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
-
-                return participantBuckets;
-            }, [allGalleryPhotos]);
-            const availableProfileIds = useMemo(
-                () => galleryBuckets.map((bucket) => bucket.id),
-                [galleryBuckets]
-            );
-
-            useEffect(() => {
-                if (gallerySelectionMode === 'all') {
-                    setSelectedProfileIds(availableProfileIds);
-                    return;
-                }
-
-                if (gallerySelectionMode === 'none') {
-                    setSelectedProfileIds([]);
-                    return;
-                }
-
-                setSelectedProfileIds((current) => current.filter((id) => availableProfileIds.includes(id)));
-            }, [gallerySelectionMode, availableProfileIds]);
-
-            const sourceGalleryPhotos = useMemo(() => {
-                if (gallerySelectionMode === 'none') return [];
-                if (gallerySelectionMode === 'all') return allGalleryPhotos;
-
-                const selectedSet = new Set(selectedProfileIds);
-                return allGalleryPhotos.filter((photo) => selectedSet.has(photo.profileId || photo.nombre));
-            }, [allGalleryPhotos, selectedProfileIds, gallerySelectionMode]);
+            }, [allGalleryPhotos, galleryViewMode]);
+            const activeGalleryBucket = useMemo(() => {
+                if (galleryViewMode === 'GENERAL') return galleryBuckets[0] || null;
+                if (!selectedGalleryBucket) return null;
+                return galleryBuckets.find(bucket => bucket.id === selectedGalleryBucket.id) || null;
+            }, [galleryBuckets, selectedGalleryBucket, galleryViewMode]);
+            const sourceGalleryPhotos = activeGalleryBucket?.photos || allGalleryPhotos;
             const galleryStats = useMemo(() => {
                 return GALLERY_LABELS.reduce((acc, label) => {
                     acc[label] = sourceGalleryPhotos.filter(photo => photo.label === label).length;
                     return acc;
                 }, {});
-            }, [sourceGalleryPhotos]);
+            }, [sourceGalleryPhotos, galleryViewMode]);
             const filteredGalleryPhotos = useMemo(() => {
                 const query = searchQuery.trim().toLowerCase();
 
@@ -1966,6 +2001,8 @@ const getInitialCatFormData = () => ({
                     return matchesLabel && matchesQuery;
                 });
             }, [sourceGalleryPhotos, galleryFilterLabel, searchQuery]);
+            const currentGalleryModeLabel = GALLERY_VIEW_MODE_LABELS[galleryViewMode] || galleryViewMode;
+            const isGalleryBucketMode = galleryViewMode !== 'GENERAL';
             const selectedGalleryPhoto = selectedGalleryIndex === null
                 ? null
                 : filteredGalleryPhotos[clampIndex(selectedGalleryIndex, filteredGalleryPhotos.length)] || null;
@@ -1976,6 +2013,11 @@ const getInitialCatFormData = () => ({
                     setSelectedGalleryIndex(null);
                 }
             }, [activeTab]);
+
+            useEffect(() => {
+                setSelectedGalleryBucket(null);
+                setSelectedGalleryIndex(null);
+            }, [galleryViewMode]);
 
             useEffect(() => {
                 if (selectedGalleryIndex === null) return;
@@ -2550,8 +2592,20 @@ const saveProfile = (e) => {
                                         <LucideIcon name="images" size={12} /> Filtros de Galería
                                     </h4>
                                     <p className="text-[10px] font-semibold text-slate-500 tracking-[0.08em] mt-2">
-                                        {filteredGalleryPhotos.length} archivos visibles de {allGalleryPhotos.length}
+                                        {filteredGalleryPhotos.length} archivos visibles de {sourceGalleryPhotos.length}
                                     </p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    {GALLERY_VIEW_MODES.map((mode) => (
+                                        <button
+                                            key={mode}
+                                            onClick={() => setGalleryViewMode(mode)}
+                                            className={`btn-metal px-3 py-3 rounded-2xl text-[10px] transition-all ${galleryViewMode === mode ? 'btn-metal--gold text-[#fffaf0]' : 'btn-metal--silver text-slate-900'}`}
+                                        >
+                                            {GALLERY_VIEW_MODE_LABELS[mode]}
+                                        </button>
+                                    ))}
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-2">
@@ -2813,12 +2867,23 @@ const saveProfile = (e) => {
                 <div>
                     <h2 className="text-4xl font-black italic text-white uppercase tracking-tighter">Galería</h2>
                     <p className="text-xs font-bold text-[var(--metal-gold)] uppercase tracking-widest mt-1">
-                        {gallerySelectionMode === 'all'
-                            ? 'Mostrando todos los perfiles'
-                            : gallerySelectionMode === 'none'
-                                ? 'Ningún perfil seleccionado'
-                                : `${selectedProfileIds.length} perfiles seleccionados`}
+                        {activeGalleryBucket && isGalleryBucketMode
+                            ? `Vista por ${currentGalleryModeLabel} · ${activeGalleryBucket.nombre}`
+                            : `Vista por ${currentGalleryModeLabel}`}
                     </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                    {GALLERY_VIEW_MODES.map((mode) => (
+                        <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setGalleryViewMode(mode)}
+                            className={`btn-metal px-4 py-2 rounded-full text-[10px] tracking-[0.08em] transition-all ${galleryViewMode === mode ? 'btn-metal--gold text-[#fffaf0]' : 'btn-metal--silver text-slate-900'}`}
+                        >
+                            {GALLERY_VIEW_MODE_LABELS[mode]}
+                        </button>
+                    ))}
                 </div>
 
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -2841,26 +2906,7 @@ const saveProfile = (e) => {
                 </div>
             </div>
 
-            <>
-                <div className="flex flex-wrap items-center gap-3">
-                    <button
-                        type="button"
-                        onClick={selectAllGalleryProfiles}
-                        className="btn-metal btn-metal--silver inline-flex items-center gap-2 px-5 py-3 rounded-full text-[10px] text-slate-900"
-                    >
-                        <LucideIcon name="check-check" size={14} />
-                        Todos
-                    </button>
-                    <button
-                        type="button"
-                        onClick={clearGalleryProfileSelection}
-                        className="btn-metal inline-flex items-center gap-2 px-5 py-3 rounded-full text-[10px]"
-                    >
-                        <LucideIcon name="x-circle" size={14} />
-                        Ninguno
-                    </button>
-                </div>
-
+            {isGalleryBucketMode && !activeGalleryBucket ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
                     {galleryBuckets.map(bucket => {
                         const isSelected = selectedProfileIds.includes(bucket.id);
@@ -2904,6 +2950,23 @@ const saveProfile = (e) => {
                         );
                     })}
                 </div>
+            ) : (
+                <>
+                    {isGalleryBucketMode && (
+                        <div className="flex items-center gap-3">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSelectedGalleryBucket(null);
+                                    setSelectedGalleryIndex(null);
+                                }}
+                                className="btn-metal btn-metal--silver inline-flex items-center gap-2 px-5 py-3 rounded-full text-[10px] text-slate-900"
+                            >
+                                <LucideIcon name="arrow-left" size={14} />
+                                Volver al índice
+                            </button>
+                        </div>
+                    )}
 
                 <div className="flex flex-wrap gap-3">
                     <button
@@ -2935,17 +2998,17 @@ const saveProfile = (e) => {
                     </button>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <button
-                        type="button"
-                        onClick={() => openGalleryViewer(0, true)}
-                        disabled={!filteredGalleryPhotos.length}
-                        className="btn-metal btn-metal--gold inline-flex items-center gap-2 px-5 py-3 rounded-full text-[10px] disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                        <LucideIcon name="play" size={14} />
-                        Play selección visible
-                    </button>
-                </div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => openGalleryViewer(0, true)}
+                            disabled={!filteredGalleryPhotos.length}
+                            className="btn-metal btn-metal--gold inline-flex items-center gap-2 px-5 py-3 rounded-full text-[10px] disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            <LucideIcon name="play" size={14} />
+                            Play {activeGalleryBucket?.nombre || currentGalleryModeLabel}
+                        </button>
+                    </div>
 
                 {filteredGalleryPhotos.length === 0 ? (
                     <div className="py-24 border border-dashed theme-border-secondary rounded-2xl text-center bg-slate-950/30">
