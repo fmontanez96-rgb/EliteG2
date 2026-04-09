@@ -1499,8 +1499,7 @@
             const [galleryFilterLabel, setGalleryFilterLabel] = useState('INICIAL');
             const [galleryViewMode, setGalleryViewMode] = useState('PERSONAJE');
             const [selectedGalleryIndex, setSelectedGalleryIndex] = useState(null);
-            const [selectedProfileIds, setSelectedProfileIds] = useState([]);
-            const [gallerySelectionMode, setGallerySelectionMode] = useState('all');
+            const [selectedGalleryBucket, setSelectedGalleryBucket] = useState(null);
             const [isGalleryPlaying, setIsGalleryPlaying] = useState(false);
             const [isGalleryRandom, setIsGalleryRandom] = useState(false);
             const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -2009,7 +2008,7 @@ const getInitialCatFormData = () => ({
 
             useEffect(() => {
                 if (activeTab !== 'GALERIA') {
-                    setGallerySelectionMode('all');
+                    setSelectedGalleryBucket(null);
                     setSelectedGalleryIndex(null);
                 }
             }, [activeTab]);
@@ -2098,25 +2097,6 @@ const getInitialCatFormData = () => ({
             };
             const showNextGalleryPhoto = () => setSelectedGalleryIndex((current) => getNextPlayableIndex(current, filteredGalleryPhotos, isGalleryRandom));
             const showPreviousGalleryPhoto = () => setSelectedGalleryIndex((current) => clampIndex((current ?? 0) - 1, filteredGalleryPhotos.length));
-            const selectAllGalleryProfiles = () => setGallerySelectionMode('all');
-            const clearGalleryProfileSelection = () => setGallerySelectionMode('none');
-            const toggleGalleryProfileSelection = (profileId) => {
-                setGallerySelectionMode('custom');
-                setSelectedProfileIds((current) => {
-                    const isSelected = current.includes(profileId);
-                    const next = isSelected
-                        ? current.filter((id) => id !== profileId)
-                        : [...current, profileId];
-
-                    if (next.length === 0) {
-                        setGallerySelectionMode('none');
-                    } else if (next.length === availableProfileIds.length) {
-                        setGallerySelectionMode('all');
-                    }
-
-                    return next;
-                });
-            };
 
 const saveProfile = (e) => {
                 e.preventDefault();
@@ -2908,47 +2888,40 @@ const saveProfile = (e) => {
 
             {isGalleryBucketMode && !activeGalleryBucket ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                    {galleryBuckets.map(bucket => {
-                        const isSelected = selectedProfileIds.includes(bucket.id);
-                        return (
-                            <button
-                                key={bucket.id}
-                                type="button"
-                                onClick={() => {
-                                    toggleGalleryProfileSelection(bucket.id);
-                                    setSelectedGalleryIndex(null);
-                                }}
-                                className={`group text-left theme-surface-card border theme-border-secondary rounded-[2.4rem] overflow-hidden transition-all duration-500 ${
-                                    isSelected
-                                        ? 'border-[color:color-mix(in_srgb,var(--metal-gold)_40%,transparent)] shadow-[0_0_30px_rgba(34,211,238,0.12)]'
-                                        : 'hover:border-[color:color-mix(in_srgb,var(--metal-gold)_40%,transparent)] hover:shadow-[0_0_30px_rgba(34,211,238,0.12)]'
-                                }`}
-                            >
-                                <div className="aspect-[4/5] bg-slate-950 relative overflow-hidden">
-                                    {bucket.fotoPerfil ? (
-                                        <img
-                                            src={bucket.fotoPerfil}
-                                            alt={`Portada ${bucket.nombre}`}
-                                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-100"
-                                            onError={applyCryingEmojiFallback}
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-slate-500">
-                                            <LucideIcon name="image-off" size={34} />
-                                        </div>
-                                    )}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/50 to-transparent" />
-                                    <div className="absolute inset-x-0 bottom-0 p-5">
-                                        <p className="text-xl font-black italic text-white tracking-tighter leading-none">{bucket.nombre}</p>
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--metal-gold)] mt-2">{bucket.profesion || 'Perfil'}</p>
-                                        <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full border theme-border-secondary bg-slate-950/85 text-[9px] font-black uppercase tracking-[0.2em] text-slate-200">
-                                            {bucket.photos.length} archivos
-                                        </div>
+                    {galleryBuckets.map(bucket => (
+                        <button
+                            key={bucket.id}
+                            type="button"
+                            onClick={() => {
+                                setSelectedGalleryBucket(bucket);
+                                setSelectedGalleryIndex(null);
+                            }}
+                            className="group text-left theme-surface-card border theme-border-secondary rounded-[2.4rem] overflow-hidden hover:border-[color:color-mix(in_srgb,var(--metal-gold)_40%,transparent)] hover:shadow-[0_0_30px_rgba(34,211,238,0.12)] transition-all duration-500"
+                        >
+                            <div className="aspect-[4/5] bg-slate-950 relative overflow-hidden">
+                                {bucket.fotoPerfil ? (
+                                    <img
+                                        src={bucket.fotoPerfil}
+                                        alt={`Portada ${bucket.nombre}`}
+                                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-100"
+                                        onError={applyCryingEmojiFallback}
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-slate-500">
+                                        <LucideIcon name="image-off" size={34} />
+                                    </div>
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/50 to-transparent" />
+                                <div className="absolute inset-x-0 bottom-0 p-5">
+                                    <p className="text-xl font-black italic text-white tracking-tighter leading-none">{bucket.nombre}</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--metal-gold)] mt-2">{bucket.profesion || 'Perfil'}</p>
+                                    <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full border theme-border-secondary bg-slate-950/85 text-[9px] font-black uppercase tracking-[0.2em] text-slate-200">
+                                        {bucket.photos.length} archivos
                                     </div>
                                 </div>
-                            </button>
-                        );
-                    })}
+                            </div>
+                        </button>
+                    ))}
                 </div>
             ) : (
                 <>
@@ -2968,35 +2941,35 @@ const saveProfile = (e) => {
                         </div>
                     )}
 
-                <div className="flex flex-wrap gap-3">
-                    <button
-                        onClick={() => setGalleryFilterLabel('INICIAL')}
-                        className="btn-metal px-4 py-2 rounded-full text-[10px] transition-all"
-                        style={getGalleryFilterButtonStyle('INICIAL', galleryFilterLabel === 'INICIAL')}
-                    >
-                        Inicial
-                    </button>
-                    {GALLERY_LABELS.map(label => {
-                        const isActive = galleryFilterLabel === label;
-                        return (
-                            <button
-                                key={label}
-                                onClick={() => setGalleryFilterLabel(label)}
-                                className="btn-metal font-title px-4 py-2 rounded-full text-[10px] tracking-[0.08em] transition-all"
-                                style={getGalleryFilterButtonStyle(label, isActive)}
-                            >
-                                {label} · {galleryStats[label] || 0}
-                            </button>
-                        );
-                    })}
-                    <button
-                        onClick={() => setGalleryFilterLabel('100')}
-                        className="btn-metal px-4 py-2 rounded-full text-[10px] transition-all"
-                        style={getGalleryFilterButtonStyle('100', galleryFilterLabel === '100')}
-                    >
-                        100%
-                    </button>
-                </div>
+                    <div className="flex flex-wrap gap-3">
+                        <button
+                            onClick={() => setGalleryFilterLabel('INICIAL')}
+                            className="btn-metal px-4 py-2 rounded-full text-[10px] transition-all"
+                            style={getGalleryFilterButtonStyle('INICIAL', galleryFilterLabel === 'INICIAL')}
+                        >
+                            Inicial
+                        </button>
+                        {GALLERY_LABELS.map(label => {
+                            const isActive = galleryFilterLabel === label;
+                            return (
+                                <button
+                                    key={label}
+                                    onClick={() => setGalleryFilterLabel(label)}
+                                    className="btn-metal font-title px-4 py-2 rounded-full text-[10px] tracking-[0.08em] transition-all"
+                                    style={getGalleryFilterButtonStyle(label, isActive)}
+                                >
+                                    {label} · {galleryStats[label] || 0}
+                                </button>
+                            );
+                        })}
+                        <button
+                            onClick={() => setGalleryFilterLabel('100')}
+                            className="btn-metal px-4 py-2 rounded-full text-[10px] transition-all"
+                            style={getGalleryFilterButtonStyle('100', galleryFilterLabel === '100')}
+                        >
+                            100%
+                        </button>
+                    </div>
 
                     <div className="flex items-center gap-3">
                         <button
@@ -3010,27 +2983,27 @@ const saveProfile = (e) => {
                         </button>
                     </div>
 
-                {filteredGalleryPhotos.length === 0 ? (
-                    <div className="py-24 border border-dashed theme-border-secondary rounded-2xl text-center bg-slate-950/30">
-                        <div className="w-20 h-20 rounded-full bg-slate-900 border theme-border-secondary flex items-center justify-center mx-auto mb-6">
-                            <LucideIcon name="image-off" size={28} className="text-slate-600" />
+                    {filteredGalleryPhotos.length === 0 ? (
+                        <div className="py-24 border border-dashed theme-border-secondary rounded-2xl text-center bg-slate-950/30">
+                            <div className="w-20 h-20 rounded-full bg-slate-900 border theme-border-secondary flex items-center justify-center mx-auto mb-6">
+                                <LucideIcon name="image-off" size={28} className="text-slate-600" />
+                            </div>
+                            <h3 className="font-title text-xl font-black italic text-white tracking-[0.06em]">No hay archivos para mostrar</h3>
+                            <p className="font-title text-xs font-medium text-slate-500 tracking-[0.06em] mt-3">Probá con otra búsqueda o quitá el filtro por etiqueta.</p>
                         </div>
-                        <h3 className="font-title text-xl font-black italic text-white tracking-[0.06em]">No hay archivos para mostrar</h3>
-                        <p className="font-title text-xs font-medium text-slate-500 tracking-[0.06em] mt-3">Probá con otra búsqueda o quitá el filtro por etiqueta.</p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8">
-                        {filteredGalleryPhotos.map((photo, index) => {
-                            const labelStyle = getGalleryLabelStyle(photo.label);
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8">
+                            {filteredGalleryPhotos.map((photo, index) => {
+                                const labelStyle = getGalleryLabelStyle(photo.label);
 
-                            return (
-                                <button
-                                    key={photo.id}
-                                    type="button"
-                                    onClick={() => openGalleryViewer(index)}
-                                    className="group text-left theme-surface-card border theme-border-secondary rounded-[2.4rem] overflow-hidden hover:border-[color:color-mix(in_srgb,var(--metal-gold)_40%,transparent)] hover:shadow-[0_0_30px_rgba(34,211,238,0.12)] transition-all duration-500 focus:outline-none focus:ring-2 focus:ring-[var(--glow-gold)] focus:ring-offset-2 focus:ring-offset-[#020617]"
-                                >
-                                    <div className="aspect-[4/5] relative overflow-hidden bg-slate-950">
+                                return (
+                                    <button
+                                        key={photo.id}
+                                        type="button"
+                                        onClick={() => openGalleryViewer(index)}
+                                        className="group text-left theme-surface-card border theme-border-secondary rounded-[2.4rem] overflow-hidden hover:border-[color:color-mix(in_srgb,var(--metal-gold)_40%,transparent)] hover:shadow-[0_0_30px_rgba(34,211,238,0.12)] transition-all duration-500 focus:outline-none focus:ring-2 focus:ring-[var(--glow-gold)] focus:ring-offset-2 focus:ring-offset-[#020617]"
+                                    >
+                                        <div className="aspect-[4/5] relative overflow-hidden bg-slate-950">
                                             {photo.type === 'video' ? (() => {
                                                 const embedInfo = getVideoEmbedInfo(photo.url);
                                                 if (embedInfo) {
@@ -3080,9 +3053,10 @@ const saveProfile = (e) => {
                                     </button>
                                 );
                             })}
-                    </div>
-                )}
-            </>
+                        </div>
+                    )}
+                </>
+            )}
 
             {selectedGalleryPhoto && (
                 <div className="fixed inset-0 z-[120] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-8" onClick={closeGalleryViewer}>
