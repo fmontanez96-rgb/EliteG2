@@ -1682,7 +1682,7 @@ const getInitialCatFormData = () => ({
                     const data = snapshot.val();
                     if (data) {
                         const listaPerfiles = Object.keys(data).map(key => ({
-                            ...data[key],
+                            ...mapProfileToFormData(data[key]),
                             firebaseId: key // Guardamos la llave de Firebase por si necesitamos editar
                         }));
                         setPerfiles(listaPerfiles);
@@ -1728,21 +1728,24 @@ const getInitialCatFormData = () => ({
                 return edad;
             };
 
-            const calcularPromedio = (p) => {
-                const s = p.puntuaciones;
-
-                // Promedio Rostro (4 ítems)
-                const promRostro = (s.Rostro + s.Ojos + s.Boca + s.Cabello) / 4;
-
-                // Promedio Cuerpo (6 ítems)
-                const promCuerpo = (s.Cuerpo + s.Cola + s.Pechos + s.Cintura + s.Piernas + s.Estatura) / 6;
-
-                // Promedio Actitud (5 ítems)
-                const promActitud = (s.Sensualidad + s.Carisma + s.Elegancia + s.Dulzura + s.Talento) / 5;
-
+            const getProfileScores = (profile = {}) => {
+                return { ...createZeroScores(), ...(profile?.puntuaciones || {}) };
+            };
+            const getRostroScore = (profile = {}) => {
+                const scores = getProfileScores(profile);
+                return (scores.Rostro + scores.Ojos + scores.Boca + scores.Cabello) / 4;
+            };
+            const getCuerpoScore = (profile = {}) => {
+                const scores = getProfileScores(profile);
+                return (scores.Cuerpo + scores.Cola + scores.Pechos + scores.Cintura + scores.Piernas + scores.Estatura) / 6;
+            };
+            const getActitudScore = (profile = {}) => {
+                const scores = getProfileScores(profile);
+                return (scores.Sensualidad + scores.Carisma + scores.Elegancia + scores.Dulzura + scores.Talento) / 5;
+            };
+            const calcularPromedio = (p = {}) => {
                 // El Score Total es el promedio de las 3 categorías principales
-                const scoreTotal = (promRostro + promCuerpo + promActitud) / 3;
-
+                const scoreTotal = (getRostroScore(p) + getCuerpoScore(p) + getActitudScore(p)) / 3;
                 return scoreTotal.toFixed(0);
             };
 
@@ -1768,7 +1771,7 @@ const getInitialCatFormData = () => ({
 
                     // Filtro de puntuación (ej: Rostro > 8)
                     if (r.caracteristica && r.umbral) {
-                        const score = p.puntuaciones[r.caracteristica];
+                        const score = getProfileScores(p)[r.caracteristica] || 0;
                         const umbral = parseInt(r.umbral);
                         if (r.operador === 'Superior a' && score <= umbral) matches = false;
                         if (r.operador === 'Inferior a' && score >= umbral) matches = false;
@@ -2327,7 +2330,7 @@ const saveProfile = (e) => {
                             // Si elige Score Total usamos el promedio, si no, el atributo específico
                             const valPerfil = filters.scoreAttr === 'promedio'
                                 ? parseFloat(calcularPromedio(p))
-                                : p.puntuaciones[filters.scoreAttr];
+                                : getProfileScores(p)[filters.scoreAttr] || 0;
 
                             if (filters.scoreVal !== '') {
                                 const valFiltro = parseInt(filters.scoreVal);
@@ -2356,13 +2359,13 @@ const saveProfile = (e) => {
                     return typeof edad === 'number' ? edad : -1;
                 }
                 if (key === 'Rostro') {
-                    return ((profile.puntuaciones.Rostro + profile.puntuaciones.Ojos + profile.puntuaciones.Boca + profile.puntuaciones.Cabello) / 4) || 0;
+                    return getRostroScore(profile) || 0;
                 }
                 if (key === 'Cuerpo') {
-                    return ((profile.puntuaciones.Cuerpo + profile.puntuaciones.Cola + profile.puntuaciones.Pechos + profile.puntuaciones.Cintura + profile.puntuaciones.Piernas + profile.puntuaciones.Estatura) / 6) || 0;
+                    return getCuerpoScore(profile) || 0;
                 }
                 if (key === 'Actitud') {
-                    return ((profile.puntuaciones.Sensualidad + profile.puntuaciones.Carisma + profile.puntuaciones.Elegancia + profile.puntuaciones.Dulzura + profile.puntuaciones.Talento) / 5) || 0;
+                    return getActitudScore(profile) || 0;
                 }
                 return Number(profile.puntuaciones?.[key] || 0);
             };
@@ -3279,17 +3282,17 @@ const saveProfile = (e) => {
 {/* Promedios por Categoría */}
 <td className="px-4 py-5 text-center">
     <span className="text-xs font-bold text-slate-300">
-        {((p.puntuaciones.Rostro + p.puntuaciones.Ojos + p.puntuaciones.Boca + p.puntuaciones.Cabello) / 4).toFixed(0)}
+        {getRostroScore(p).toFixed(0)}
     </span>
 </td>
 <td className="px-4 py-5 text-center">
     <span className="text-xs font-bold text-slate-300">
-        {((p.puntuaciones.Cuerpo + p.puntuaciones.Cola + p.puntuaciones.Pechos + p.puntuaciones.Cintura + p.puntuaciones.Piernas + p.puntuaciones.Estatura) / 6).toFixed(0)}
+        {getCuerpoScore(p).toFixed(0)}
     </span>
 </td>
 <td className="px-4 py-5 text-center">
     <span className="text-xs font-bold text-slate-300">
-        {((p.puntuaciones.Sensualidad + p.puntuaciones.Carisma + p.puntuaciones.Elegancia + p.puntuaciones.Dulzura + p.puntuaciones.Talento) / 5).toFixed(0)}
+        {getActitudScore(p).toFixed(0)}
     </span>
 </td>
 
