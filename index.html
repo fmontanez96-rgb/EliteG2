@@ -1491,7 +1491,8 @@
             const [galleryMediaType, setGalleryMediaType] = useState('image');
             const [galleryFilterLabel, setGalleryFilterLabel] = useState('INICIAL');
             const [selectedGalleryIndex, setSelectedGalleryIndex] = useState(null);
-            const [selectedGalleryBucket, setSelectedGalleryBucket] = useState(null);
+            const [selectedProfileIds, setSelectedProfileIds] = useState([]);
+            const [gallerySelectionMode, setGallerySelectionMode] = useState('all');
             const [isGalleryPlaying, setIsGalleryPlaying] = useState(false);
             const [isGalleryRandom, setIsGalleryRandom] = useState(false);
             const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -1913,23 +1914,34 @@ const getInitialCatFormData = () => ({
                     .filter(bucket => bucket.photos.length > 0)
                     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
 
-                return [
-                    {
-                        id: 'GENERAL',
-                        nombre: 'General',
-                        profesion: 'Archivo global',
-                        nacionalidad: '',
-                        fotoPerfil: allGalleryPhotos[0]?.url || '',
-                        photos: allGalleryPhotos
-                    },
-                    ...participantBuckets
-                ];
+                return participantBuckets;
             }, [allGalleryPhotos]);
-            const activeGalleryBucket = useMemo(() => {
-                if (!selectedGalleryBucket) return null;
-                return galleryBuckets.find(bucket => bucket.id === selectedGalleryBucket.id) || null;
-            }, [galleryBuckets, selectedGalleryBucket]);
-            const sourceGalleryPhotos = activeGalleryBucket?.photos || allGalleryPhotos;
+            const availableProfileIds = useMemo(
+                () => galleryBuckets.map((bucket) => bucket.id),
+                [galleryBuckets]
+            );
+
+            useEffect(() => {
+                if (gallerySelectionMode === 'all') {
+                    setSelectedProfileIds(availableProfileIds);
+                    return;
+                }
+
+                if (gallerySelectionMode === 'none') {
+                    setSelectedProfileIds([]);
+                    return;
+                }
+
+                setSelectedProfileIds((current) => current.filter((id) => availableProfileIds.includes(id)));
+            }, [gallerySelectionMode, availableProfileIds]);
+
+            const sourceGalleryPhotos = useMemo(() => {
+                if (gallerySelectionMode === 'none') return [];
+                if (gallerySelectionMode === 'all') return allGalleryPhotos;
+
+                const selectedSet = new Set(selectedProfileIds);
+                return allGalleryPhotos.filter((photo) => selectedSet.has(photo.profileId || photo.nombre));
+            }, [allGalleryPhotos, selectedProfileIds, gallerySelectionMode]);
             const galleryStats = useMemo(() => {
                 return GALLERY_LABELS.reduce((acc, label) => {
                     acc[label] = sourceGalleryPhotos.filter(photo => photo.label === label).length;
@@ -1960,7 +1972,7 @@ const getInitialCatFormData = () => ({
 
             useEffect(() => {
                 if (activeTab !== 'GALERIA') {
-                    setSelectedGalleryBucket(null);
+                    setGallerySelectionMode('all');
                     setSelectedGalleryIndex(null);
                 }
             }, [activeTab]);
@@ -2044,6 +2056,25 @@ const getInitialCatFormData = () => ({
             };
             const showNextGalleryPhoto = () => setSelectedGalleryIndex((current) => getNextPlayableIndex(current, filteredGalleryPhotos, isGalleryRandom));
             const showPreviousGalleryPhoto = () => setSelectedGalleryIndex((current) => clampIndex((current ?? 0) - 1, filteredGalleryPhotos.length));
+            const selectAllGalleryProfiles = () => setGallerySelectionMode('all');
+            const clearGalleryProfileSelection = () => setGallerySelectionMode('none');
+            const toggleGalleryProfileSelection = (profileId) => {
+                setGallerySelectionMode('custom');
+                setSelectedProfileIds((current) => {
+                    const isSelected = current.includes(profileId);
+                    const next = isSelected
+                        ? current.filter((id) => id !== profileId)
+                        : [...current, profileId];
+
+                    if (next.length === 0) {
+                        setGallerySelectionMode('none');
+                    } else if (next.length === availableProfileIds.length) {
+                        setGallerySelectionMode('all');
+                    }
+
+                    return next;
+                });
+            };
 
 const saveProfile = (e) => {
                 e.preventDefault();
@@ -2782,9 +2813,11 @@ const saveProfile = (e) => {
                 <div>
                     <h2 className="text-4xl font-black italic text-white uppercase tracking-tighter">Galería</h2>
                     <p className="text-xs font-bold text-[var(--metal-gold)] uppercase tracking-widest mt-1">
-                        {activeGalleryBucket
-                            ? `Vista ${activeGalleryBucket.nombre} · ${activeGalleryBucket.profesion || 'Galería'}`
-                            : 'Índice de galerías por participante'}
+                        {gallerySelectionMode === 'all'
+                            ? 'Mostrando todos los perfiles'
+                            : gallerySelectionMode === 'none'
+                                ? 'Ningún perfil seleccionado'
+                                : `${selectedProfileIds.length} perfiles seleccionados`}
                     </p>
                 </div>
 
@@ -2808,174 +2841,183 @@ const saveProfile = (e) => {
                 </div>
             </div>
 
-            {!activeGalleryBucket ? (
+                <div className="flex flex-wrap items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={selectAllGalleryProfiles}
+                        className="btn-metal btn-metal--silver inline-flex items-center gap-2 px-5 py-3 rounded-full text-[10px] text-slate-900"
+                    >
+                        <LucideIcon name="check-check" size={14} />
+                        Todos
+                    </button>
+                    <button
+                        type="button"
+                        onClick={clearGalleryProfileSelection}
+                        className="btn-metal inline-flex items-center gap-2 px-5 py-3 rounded-full text-[10px]"
+                    >
+                        <LucideIcon name="x-circle" size={14} />
+                        Ninguno
+                    </button>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                    {galleryBuckets.map(bucket => (
-                        <button
-                            key={bucket.id}
-                            type="button"
-                            onClick={() => {
-                                setSelectedGalleryBucket(bucket);
-                                setSelectedGalleryIndex(null);
-                            }}
-                            className="group text-left theme-surface-card border theme-border-secondary rounded-[2.4rem] overflow-hidden hover:border-[color:color-mix(in_srgb,var(--metal-gold)_40%,transparent)] hover:shadow-[0_0_30px_rgba(34,211,238,0.12)] transition-all duration-500"
-                        >
-                            <div className="aspect-[4/5] bg-slate-950 relative overflow-hidden">
-                                {bucket.fotoPerfil ? (
-                                    <img
-                                        src={bucket.fotoPerfil}
-                                        alt={`Portada ${bucket.nombre}`}
-                                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-100"
-                                        onError={applyCryingEmojiFallback}
-                                    />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-slate-500">
-                                        <LucideIcon name="image-off" size={34} />
-                                    </div>
-                                )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/50 to-transparent" />
-                                <div className="absolute inset-x-0 bottom-0 p-5">
-                                    <p className="text-xl font-black italic text-white tracking-tighter leading-none">{bucket.nombre}</p>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--metal-gold)] mt-2">{bucket.profesion || 'Perfil'}</p>
-                                    <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full border theme-border-secondary bg-slate-950/85 text-[9px] font-black uppercase tracking-[0.2em] text-slate-200">
-                                        {bucket.photos.length} archivos
+                    {galleryBuckets.map(bucket => {
+                        const isSelected = selectedProfileIds.includes(bucket.id);
+                        return (
+                            <button
+                                key={bucket.id}
+                                type="button"
+                                onClick={() => {
+                                    toggleGalleryProfileSelection(bucket.id);
+                                    setSelectedGalleryIndex(null);
+                                }}
+                                className={`group text-left theme-surface-card border theme-border-secondary rounded-[2.4rem] overflow-hidden transition-all duration-500 ${
+                                    isSelected
+                                        ? 'border-[color:color-mix(in_srgb,var(--metal-gold)_40%,transparent)] shadow-[0_0_30px_rgba(34,211,238,0.12)]'
+                                        : 'hover:border-[color:color-mix(in_srgb,var(--metal-gold)_40%,transparent)] hover:shadow-[0_0_30px_rgba(34,211,238,0.12)]'
+                                }`}
+                            >
+                                <div className="aspect-[4/5] bg-slate-950 relative overflow-hidden">
+                                    {bucket.fotoPerfil ? (
+                                        <img
+                                            src={bucket.fotoPerfil}
+                                            alt={`Portada ${bucket.nombre}`}
+                                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-100"
+                                            onError={applyCryingEmojiFallback}
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-slate-500">
+                                            <LucideIcon name="image-off" size={34} />
+                                        </div>
+                                    )}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/50 to-transparent" />
+                                    <div className="absolute inset-x-0 bottom-0 p-5">
+                                        <p className="text-xl font-black italic text-white tracking-tighter leading-none">{bucket.nombre}</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--metal-gold)] mt-2">{bucket.profesion || 'Perfil'}</p>
+                                        <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full border theme-border-secondary bg-slate-950/85 text-[9px] font-black uppercase tracking-[0.2em] text-slate-200">
+                                            {bucket.photos.length} archivos
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </button>
-                    ))}
+                            </button>
+                        );
+                    })}
                 </div>
-            ) : (
-                <>
-                    <div className="flex items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setSelectedGalleryBucket(null);
-                                setSelectedGalleryIndex(null);
-                            }}
-                            className="btn-metal btn-metal--silver inline-flex items-center gap-2 px-5 py-3 rounded-full text-[10px] text-slate-900"
-                        >
-                            <LucideIcon name="arrow-left" size={14} />
-                            Volver al índice
-                        </button>
-                    </div>
 
-                    <div className="flex flex-wrap gap-3">
-                        <button
-                            onClick={() => setGalleryFilterLabel('INICIAL')}
-                            className="btn-metal px-4 py-2 rounded-full text-[10px] transition-all"
-                            style={getGalleryFilterButtonStyle('INICIAL', galleryFilterLabel === 'INICIAL')}
-                        >
-                            Inicial
-                        </button>
-                        {GALLERY_LABELS.map(label => {
-                            const isActive = galleryFilterLabel === label;
+                <div className="flex flex-wrap gap-3">
+                    <button
+                        onClick={() => setGalleryFilterLabel('INICIAL')}
+                        className="btn-metal px-4 py-2 rounded-full text-[10px] transition-all"
+                        style={getGalleryFilterButtonStyle('INICIAL', galleryFilterLabel === 'INICIAL')}
+                    >
+                        Inicial
+                    </button>
+                    {GALLERY_LABELS.map(label => {
+                        const isActive = galleryFilterLabel === label;
+                        return (
+                            <button
+                                key={label}
+                                onClick={() => setGalleryFilterLabel(label)}
+                                className="btn-metal font-title px-4 py-2 rounded-full text-[10px] tracking-[0.08em] transition-all"
+                                style={getGalleryFilterButtonStyle(label, isActive)}
+                            >
+                                {label} · {galleryStats[label] || 0}
+                            </button>
+                        );
+                    })}
+                    <button
+                        onClick={() => setGalleryFilterLabel('100')}
+                        className="btn-metal px-4 py-2 rounded-full text-[10px] transition-all"
+                        style={getGalleryFilterButtonStyle('100', galleryFilterLabel === '100')}
+                    >
+                        100%
+                    </button>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={() => openGalleryViewer(0, true)}
+                        disabled={!filteredGalleryPhotos.length}
+                        className="btn-metal btn-metal--gold inline-flex items-center gap-2 px-5 py-3 rounded-full text-[10px] disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        <LucideIcon name="play" size={14} />
+                        Play selección visible
+                    </button>
+                </div>
+
+                {filteredGalleryPhotos.length === 0 ? (
+                    <div className="py-24 border border-dashed theme-border-secondary rounded-2xl text-center bg-slate-950/30">
+                        <div className="w-20 h-20 rounded-full bg-slate-900 border theme-border-secondary flex items-center justify-center mx-auto mb-6">
+                            <LucideIcon name="image-off" size={28} className="text-slate-600" />
+                        </div>
+                        <h3 className="font-title text-xl font-black italic text-white tracking-[0.06em]">No hay archivos para mostrar</h3>
+                        <p className="font-title text-xs font-medium text-slate-500 tracking-[0.06em] mt-3">Probá con otra búsqueda o quitá el filtro por etiqueta.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8">
+                        {filteredGalleryPhotos.map((photo, index) => {
+                            const labelStyle = getGalleryLabelStyle(photo.label);
+
                             return (
                                 <button
-                                    key={label}
-                                    onClick={() => setGalleryFilterLabel(label)}
-                                    className="btn-metal font-title px-4 py-2 rounded-full text-[10px] tracking-[0.08em] transition-all"
-                                    style={getGalleryFilterButtonStyle(label, isActive)}
+                                    key={photo.id}
+                                    type="button"
+                                    onClick={() => openGalleryViewer(index)}
+                                    className="group text-left theme-surface-card border theme-border-secondary rounded-[2.4rem] overflow-hidden hover:border-[color:color-mix(in_srgb,var(--metal-gold)_40%,transparent)] hover:shadow-[0_0_30px_rgba(34,211,238,0.12)] transition-all duration-500 focus:outline-none focus:ring-2 focus:ring-[var(--glow-gold)] focus:ring-offset-2 focus:ring-offset-[#020617]"
                                 >
-                                    {label} · {galleryStats[label] || 0}
-                                </button>
-                            );
-                        })}
-                        <button
-                            onClick={() => setGalleryFilterLabel('100')}
-                            className="btn-metal px-4 py-2 rounded-full text-[10px] transition-all"
-                            style={getGalleryFilterButtonStyle('100', galleryFilterLabel === '100')}
-                        >
-                            100%
-                        </button>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={() => openGalleryViewer(0, true)}
-                            disabled={!filteredGalleryPhotos.length}
-                            className="btn-metal btn-metal--gold inline-flex items-center gap-2 px-5 py-3 rounded-full text-[10px] disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                            <LucideIcon name="play" size={14} />
-                            Play {activeGalleryBucket.nombre}
-                        </button>
-                    </div>
-
-                    {filteredGalleryPhotos.length === 0 ? (
-                        <div className="py-24 border border-dashed theme-border-secondary rounded-2xl text-center bg-slate-950/30">
-                            <div className="w-20 h-20 rounded-full bg-slate-900 border theme-border-secondary flex items-center justify-center mx-auto mb-6">
-                                <LucideIcon name="image-off" size={28} className="text-slate-600" />
-                            </div>
-                            <h3 className="font-title text-xl font-black italic text-white tracking-[0.06em]">No hay archivos para mostrar</h3>
-                            <p className="font-title text-xs font-medium text-slate-500 tracking-[0.06em] mt-3">Probá con otra búsqueda o quitá el filtro por etiqueta.</p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8">
-                            {filteredGalleryPhotos.map((photo, index) => {
-                                const labelStyle = getGalleryLabelStyle(photo.label);
-
-                                return (
-                                    <button
-                                        key={photo.id}
-                                        type="button"
-                                        onClick={() => openGalleryViewer(index)}
-                                        className="group text-left theme-surface-card border theme-border-secondary rounded-[2.4rem] overflow-hidden hover:border-[color:color-mix(in_srgb,var(--metal-gold)_40%,transparent)] hover:shadow-[0_0_30px_rgba(34,211,238,0.12)] transition-all duration-500 focus:outline-none focus:ring-2 focus:ring-[var(--glow-gold)] focus:ring-offset-2 focus:ring-offset-[#020617]"
-                                    >
-                                        <div className="aspect-[4/5] relative overflow-hidden bg-slate-950">
-                                            {photo.type === 'video' ? (() => {
-                                                const embedInfo = getVideoEmbedInfo(photo.url);
-                                                if (embedInfo) {
-                                                    return (
-                                                        <div className="w-full h-full bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.3),_rgba(15,23,42,0.95))] flex flex-col items-center justify-center gap-4 p-6 text-center">
-                                                            <div className="w-16 h-16 rounded-full border border-[var(--metal-gold)]/40 bg-slate-950/70 flex items-center justify-center text-[color:color-mix(in_srgb,var(--metal-gold)_72%,white)] text-2xl">▶</div>
-                                                            <div>
-                                                                <p className="font-title text-sm font-semibold tracking-[0.1em] text-white">Video</p>
-                                                                <p className="font-title text-[10px] font-medium tracking-[0.08em] text-slate-400 mt-2">{embedInfo.provider}</p>
-                                                            </div>
+                                    <div className="aspect-[4/5] relative overflow-hidden bg-slate-950">
+                                        {photo.type === 'video' ? (() => {
+                                            const embedInfo = getVideoEmbedInfo(photo.url);
+                                            if (embedInfo) {
+                                                return (
+                                                    <div className="w-full h-full bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.3),_rgba(15,23,42,0.95))] flex flex-col items-center justify-center gap-4 p-6 text-center">
+                                                        <div className="w-16 h-16 rounded-full border border-[var(--metal-gold)]/40 bg-slate-950/70 flex items-center justify-center text-[color:color-mix(in_srgb,var(--metal-gold)_72%,white)] text-2xl">▶</div>
+                                                        <div>
+                                                            <p className="font-title text-sm font-semibold tracking-[0.1em] text-white">Video</p>
+                                                            <p className="font-title text-[10px] font-medium tracking-[0.08em] text-slate-400 mt-2">{embedInfo.provider}</p>
                                                         </div>
-                                                    );
-                                                }
-                                                return <video src={photo.url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" muted playsInline preload="metadata" />;
-                                            })() : <img src={photo.url} alt={`${photo.nombre} - ${photo.label || 'galería'}`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={applyCryingEmojiFallback} />}
-                                            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-t from-cyan-950/40 via-transparent to-transparent" />
-                                            <div className="absolute inset-x-0 bottom-0 p-5 bg-gradient-to-t from-[#020617] via-[#020617]/60 to-transparent">
-                                                <div className="flex items-end justify-between gap-3">
-                                                    <div>
-                                                        <p className="text-lg font-black italic text-white tracking-tighter leading-none">{photo.nombre}</p>
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--metal-gold)] mt-2">{photo.profesion}</p>
-                                                        {photo.nacionalidad && (
-                                                            <p className="font-title text-[9px] font-medium tracking-[0.06em] text-slate-400 mt-1">{photo.nacionalidad}</p>
-                                                        )}
                                                     </div>
-                                                    <div className="flex flex-col items-end gap-2">
-                                                        <div className="px-3 py-1 rounded-full border theme-border-secondary bg-slate-950/85 text-[9px] font-black uppercase tracking-[0.3em] text-slate-200">
-                                                            {photo.type === 'video' ? 'VIDEO' : (photo.isGif ? 'GIF' : 'IMG')}
-                                                        </div>
-                                                        <div
-                                                            className="min-w-[46px] h-[46px] rounded-2xl border flex items-center justify-center text-sm font-black uppercase shadow-xl"
-                                                            style={{
-                                                                background: labelStyle.bg,
-                                                                borderColor: labelStyle.border,
-                                                                color: labelStyle.text,
-                                                                boxShadow: `0 0 16px ${labelStyle.glow}`
-                                                            }}
-                                                        >
-                                                            {photo.label || '—'}
-                                                        </div>
+                                                );
+                                            }
+                                            return <video src={photo.url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" muted playsInline preload="metadata" />;
+                                        })() : (
+                                            <img src={photo.url} alt={`${photo.nombre} - ${photo.label || 'galería'}`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={applyCryingEmojiFallback} />
+                                        )}
+                                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-t from-cyan-950/40 via-transparent to-transparent" />
+                                        <div className="absolute inset-x-0 bottom-0 p-5 bg-gradient-to-t from-[#020617] via-[#020617]/60 to-transparent">
+                                            <div className="flex items-end justify-between gap-3">
+                                                <div>
+                                                    <p className="text-lg font-black italic text-white tracking-tighter leading-none">{photo.nombre}</p>
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--metal-gold)] mt-2">{photo.profesion}</p>
+                                                    {photo.nacionalidad && (
+                                                        <p className="font-title text-[9px] font-medium tracking-[0.06em] text-slate-400 mt-1">{photo.nacionalidad}</p>
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <div className="px-3 py-1 rounded-full border theme-border-secondary bg-slate-950/85 text-[9px] font-black uppercase tracking-[0.3em] text-slate-200">
+                                                        {photo.type === 'video' ? 'VIDEO' : (photo.isGif ? 'GIF' : 'IMG')}
+                                                    </div>
+                                                    <div
+                                                        className="min-w-[46px] h-[46px] rounded-2xl border flex items-center justify-center text-sm font-black uppercase shadow-xl"
+                                                        style={{
+                                                            background: labelStyle.bg,
+                                                            borderColor: labelStyle.border,
+                                                            color: labelStyle.text,
+                                                            boxShadow: `0 0 16px ${labelStyle.glow}`
+                                                        }}
+                                                    >
+                                                        {photo.label || '-'}
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
-                </>
-            )}
-
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
             {selectedGalleryPhoto && (
                 <div className="fixed inset-0 z-[120] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-8" onClick={closeGalleryViewer}>
                     <button
