@@ -602,6 +602,23 @@
 
             return null;
         };
+        const BLOCKED_MEDIA_HOST_PATTERNS = ['eporner.com'];
+        const isBlockedMediaUrl = (rawUrl = '') => {
+            const normalized = String(rawUrl || '').trim();
+            if (!normalized || normalized.startsWith('data:') || normalized.startsWith('blob:')) return false;
+            try {
+                const parsed = new URL(normalized);
+                const host = parsed.hostname.toLowerCase();
+                return BLOCKED_MEDIA_HOST_PATTERNS.some((pattern) => host === pattern || host.endsWith(`.${pattern}`));
+            } catch {
+                return false;
+            }
+        };
+        const getSafeImageSrc = (rawUrl = '', fallback = '') => {
+            const normalized = String(rawUrl || '').trim();
+            if (!normalized || isBlockedMediaUrl(normalized)) return fallback;
+            return normalized;
+        };
         const detectGalleryItemType = (url = '', explicitType = '') => {
             if (explicitType === 'video' || explicitType === 'image') return explicitType;
             const normalizedUrl = (url || '').trim();
@@ -613,13 +630,13 @@
         const normalizeGalleryItem = (item, fallbackType = '') => {
             if (typeof item === 'string') {
                 return {
-                    url: item.trim(),
+                    url: getSafeImageSrc(item.trim(), ''),
                     label: '',
                     type: detectGalleryItemType(item, fallbackType)
                 };
             }
             if (item && typeof item === 'object') {
-                const url = (item.url || '').trim();
+                const url = getSafeImageSrc((item.url || '').trim(), '');
                 return {
                     url,
                     label: GALLERY_LABELS.includes(item.label) ? item.label : '',
@@ -638,7 +655,7 @@
                     .map((item) => normalizeGalleryItem(item, 'image'))
                     .filter((item) => item.type === 'image' && item.url)
                 : [];
-            const profilePhoto = profile?.fotos?.[0];
+            const profilePhoto = getSafeImageSrc(profile?.fotos?.[0], '');
             const fallbackPhoto = profilePhoto || 'https://via.placeholder.com/400x500';
 
             const useProfilePhotoArenas = new Set([
@@ -2806,7 +2823,7 @@ const saveProfile = (e) => {
                         >
                             <div className="aspect-[4/5] bg-slate-950 relative overflow-hidden">
                                 <img
-                                    src={(p.fotos && p.fotos.length > 0) ? p.fotos[0] : 'https://via.placeholder.com/400x500'}
+                                    src={getSafeImageSrc((p.fotos && p.fotos.length > 0) ? p.fotos[0] : '', 'https://via.placeholder.com/400x500')}
                                     className="w-full h-full object-cover transition-transform duration-700 opacity-80 group-hover:opacity-100"
                                     onError={applyCryingEmojiFallback}
                                 />
@@ -2901,7 +2918,7 @@ const saveProfile = (e) => {
                             <div className="aspect-[4/5] bg-slate-950 relative overflow-hidden">
                                 {bucket.fotoPerfil ? (
                                     <img
-                                        src={bucket.fotoPerfil}
+                                        src={getSafeImageSrc(bucket.fotoPerfil, 'https://via.placeholder.com/400x500')}
                                         alt={`Portada ${bucket.nombre}`}
                                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-100"
                                         onError={applyCryingEmojiFallback}
@@ -3018,7 +3035,7 @@ const saveProfile = (e) => {
                                                     );
                                                 }
                                                 return <video src={photo.url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" muted playsInline preload="metadata" />;
-                                            })() : <img src={photo.url} alt={`${photo.nombre} - ${photo.label || 'galería'}`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={applyCryingEmojiFallback} />}
+                                            })() : <img src={getSafeImageSrc(photo.url, CRYING_EMOJI_FALLBACK)} alt={`${photo.nombre} - ${photo.label || 'galería'}`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={applyCryingEmojiFallback} />}
                                             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-t from-cyan-950/40 via-transparent to-transparent" />
                                             <div className="absolute inset-x-0 bottom-0 p-5 bg-gradient-to-t from-[#020617] via-[#020617]/60 to-transparent">
                                                 <div className="flex items-end justify-between gap-3">
@@ -3144,7 +3161,7 @@ const saveProfile = (e) => {
                                 );
                             })() : (
                                 <img
-                                    src={selectedGalleryPhoto.url}
+                                    src={getSafeImageSrc(selectedGalleryPhoto.url, CRYING_EMOJI_FALLBACK)}
                                     alt={`${selectedGalleryPhoto.nombre} - ${selectedGalleryPhoto.label || 'galería'}`}
                                     onError={() => {
                                         if (filteredGalleryPhotos.length > 1) {
@@ -3425,7 +3442,7 @@ const saveProfile = (e) => {
          borderColor: (neonColors[p.profesion?.toUpperCase()] || neonColors["DEFAULT"]).color,
          boxShadow: `0 0 10px ${(neonColors[p.profesion?.toUpperCase()] || neonColors["DEFAULT"]).sombra}`
      }}>
-                <img src={p.fotos?.[0] || 'https://via.placeholder.com/400x500'} className="w-full h-full object-cover transition-transform duration-700 opacity-80 group-hover:opacity-100" onError={applyCryingEmojiFallback} />
+                <img src={getSafeImageSrc(p.fotos?.[0], 'https://via.placeholder.com/400x500')} className="w-full h-full object-cover transition-transform duration-700 opacity-80 group-hover:opacity-100" onError={applyCryingEmojiFallback} />
             </div>
             <div>
                 <p className="font-title font-black text-white text-sm tracking-[0.06em] rock-carved-text">{p.nombre}</p>
@@ -3533,7 +3550,7 @@ const saveProfile = (e) => {
         {/* Imagen de Portada */}
         <div className="absolute inset-0">
             <img
-                src={cat.coverImg || 'https://via.placeholder.com/400x600?text=Sin+Portada'}
+                src={getSafeImageSrc(cat.coverImg, 'https://via.placeholder.com/400x600?text=Sin+Portada')}
                 className="w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity duration-500"
                 onError={applyCryingEmojiFallback}
             />
@@ -3614,7 +3631,7 @@ const saveProfile = (e) => {
             {/* CUADRO VISTA PREVIA NEÓN */}
             <div className="w-48 h-60 rounded-2xl border-2 border-cyan-500 shadow-[0_0_20px_rgba(34,211,238,0.4)] overflow-hidden bg-slate-900 flex items-center justify-center relative group">
                 {formData.fotos.length > 0 && formData.fotos[0] !== "" ? (
-                    <img src={formData.fotos[0]} className="w-full h-full object-cover" alt="Preview" onError={applyCryingEmojiFallback} />
+                    <img src={getSafeImageSrc(formData.fotos[0], CRYING_EMOJI_FALLBACK)} className="w-full h-full object-cover" alt="Preview" onError={applyCryingEmojiFallback} />
                 ) : (
                     <div className="text-center p-4">
                         <LucideIcon name="image" size={32} className="mx-auto text-slate-700 mb-2" />
@@ -3637,7 +3654,7 @@ const saveProfile = (e) => {
                                 );
                             }
                             return <video src={urlInput} className="w-full h-full object-cover" muted playsInline preload="metadata" />;
-                        })() : <img src={urlInput} className="w-full h-full object-cover" alt="Preview galería" onError={applyCryingEmojiFallback} />}
+                        })() : <img src={getSafeImageSrc(urlInput, CRYING_EMOJI_FALLBACK)} className="w-full h-full object-cover" alt="Preview galería" onError={applyCryingEmojiFallback} />}
                         {(() => {
                             const labelStyle = getGalleryLabelStyle(galleryLabel);
                             return (
