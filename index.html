@@ -1514,7 +1514,6 @@
             const [galleryLabel, setGalleryLabel] = useState(GALLERY_LABELS[0]);
             const [galleryMediaType, setGalleryMediaType] = useState('image');
             const [galleryFilterLabel, setGalleryFilterLabel] = useState('INICIAL');
-            const [gallerySelectedLabels, setGallerySelectedLabels] = useState([]);
             const [galleryViewMode, setGalleryViewMode] = useState('PERSONAJE');
             const [selectedGalleryIndex, setSelectedGalleryIndex] = useState(null);
             const [selectedGalleryBucket, setSelectedGalleryBucket] = useState(null);
@@ -2014,13 +2013,11 @@ const getInitialCatFormData = () => ({
                 const query = searchQuery.trim().toLowerCase();
 
                 return sourceGalleryPhotos.filter(photo => {
-                    const matchesLabel = isEtiquetaMode
-                        ? (gallerySelectedLabels.length ? gallerySelectedLabels.includes(photo.label) : true)
-                        : galleryFilterLabel === 'INICIAL'
-                            ? photo.label !== 'X'
-                            : galleryFilterLabel === '100'
-                                ? true
-                                : photo.label === galleryFilterLabel;
+                    const matchesLabel = galleryFilterLabel === 'INICIAL'
+                        ? photo.label !== 'X'
+                        : galleryFilterLabel === '100'
+                            ? true
+                            : photo.label === galleryFilterLabel;
                     const matchesQuery = !query
                         || String(photo.nombre || '').toLowerCase().includes(query)
                         || String(photo.profesion || '').toLowerCase().includes(query)
@@ -2029,7 +2026,7 @@ const getInitialCatFormData = () => ({
 
                     return matchesLabel && matchesQuery;
                 });
-            }, [sourceGalleryPhotos, galleryFilterLabel, gallerySelectedLabels, searchQuery, isEtiquetaMode]);
+            }, [sourceGalleryPhotos, galleryFilterLabel, searchQuery]);
             const currentGalleryModeLabel = GALLERY_VIEW_MODE_LABELS[galleryViewMode] || galleryViewMode;
             const isGalleryBucketMode = galleryViewMode !== 'GENERAL';
             const availableCharacterBuckets = useMemo(() => {
@@ -2643,23 +2640,19 @@ const saveProfile = (e) => {
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-2">
-                                    {galleryViewMode !== 'ETIQUETA' && (
-                                        <button
-                                            onClick={() => toggleGalleryLabelFilter('INICIAL')}
-                                            className="btn-metal px-3 py-3 rounded-2xl text-[10px] transition-all"
-                                            style={getGalleryFilterButtonStyle('INICIAL', galleryFilterLabel === 'INICIAL')}
-                                        >
-                                            Inicial
-                                        </button>
-                                    )}
+                                    <button
+                                        onClick={() => setGalleryFilterLabel('INICIAL')}
+                                        className="btn-metal px-3 py-3 rounded-2xl text-[10px] transition-all"
+                                        style={getGalleryFilterButtonStyle('INICIAL', galleryFilterLabel === 'INICIAL')}
+                                    >
+                                        Inicial
+                                    </button>
                                     {GALLERY_LABELS.map(label => {
-                                        const isActive = galleryViewMode === 'ETIQUETA'
-                                            ? gallerySelectedLabels.includes(label)
-                                            : galleryFilterLabel === label;
+                                        const isActive = galleryFilterLabel === label;
                                         return (
                                             <button
                                                 key={label}
-                                                onClick={() => toggleGalleryLabelFilter(label)}
+                                                onClick={() => setGalleryFilterLabel(label)}
                                                 className="btn-metal px-3 py-3 rounded-2xl text-[10px] transition-all"
                                                 style={getGalleryFilterButtonStyle(label, isActive)}
                                             >
@@ -2667,22 +2660,20 @@ const saveProfile = (e) => {
                                             </button>
                                         );
                                     })}
-                                    {galleryViewMode !== 'ETIQUETA' && (
-                                        <button
-                                            onClick={() => toggleGalleryLabelFilter('100')}
-                                            className="btn-metal px-3 py-3 rounded-2xl text-[10px] transition-all"
-                                            style={getGalleryFilterButtonStyle('100', galleryFilterLabel === '100')}
-                                        >
-                                            100%
-                                        </button>
-                                    )}
+                                    <button
+                                        onClick={() => setGalleryFilterLabel('100')}
+                                        className="btn-metal px-3 py-3 rounded-2xl text-[10px] transition-all"
+                                        style={getGalleryFilterButtonStyle('100', galleryFilterLabel === '100')}
+                                    >
+                                        100%
+                                    </button>
                                 </div>
 
                                 <button
-                                    onClick={clearGalleryLabelFilters}
+                                    onClick={() => setGalleryFilterLabel('INICIAL')}
                                     className="w-full text-[9px] font-black text-slate-600 hover:text-[var(--metal-gold)] uppercase tracking-tighter transition-colors"
                                 >
-                                    {galleryViewMode === 'ETIQUETA' ? 'Mostrar todas las etiquetas' : 'Limpiar filtro de etiquetas'}
+                                    Limpiar filtro de etiquetas
                                 </button>
                             </div>
                         )}
@@ -3039,23 +3030,19 @@ const saveProfile = (e) => {
                     )}
 
                     <div className="flex flex-wrap gap-3">
-                        {galleryViewMode !== 'ETIQUETA' && (
-                            <button
-                                onClick={() => toggleGalleryLabelFilter('INICIAL')}
-                                className="btn-metal px-4 py-2 rounded-full text-[10px] transition-all"
-                                style={getGalleryFilterButtonStyle('INICIAL', galleryFilterLabel === 'INICIAL')}
-                            >
-                                Inicial
-                            </button>
-                        )}
+                        <button
+                            onClick={() => setGalleryFilterLabel('INICIAL')}
+                            className="btn-metal px-4 py-2 rounded-full text-[10px] transition-all"
+                            style={getGalleryFilterButtonStyle('INICIAL', galleryFilterLabel === 'INICIAL')}
+                        >
+                            Inicial
+                        </button>
                         {GALLERY_LABELS.map(label => {
-                            const isActive = galleryViewMode === 'ETIQUETA'
-                                ? gallerySelectedLabels.includes(label)
-                                : galleryFilterLabel === label;
+                            const isActive = galleryFilterLabel === label;
                             return (
                                 <button
                                     key={label}
-                                    onClick={() => toggleGalleryLabelFilter(label)}
+                                    onClick={() => setGalleryFilterLabel(label)}
                                     className="btn-metal font-title px-4 py-2 rounded-full text-[10px] tracking-[0.08em] transition-all"
                                     style={getGalleryFilterButtonStyle(label, isActive)}
                                 >
@@ -3063,20 +3050,12 @@ const saveProfile = (e) => {
                                 </button>
                             );
                         })}
-                        {galleryViewMode !== 'ETIQUETA' && (
-                            <button
-                                onClick={() => toggleGalleryLabelFilter('100')}
-                                className="btn-metal px-4 py-2 rounded-full text-[10px] transition-all"
-                                style={getGalleryFilterButtonStyle('100', galleryFilterLabel === '100')}
-                            >
-                                100%
-                            </button>
-                        )}
                         <button
-                            onClick={clearGalleryLabelFilters}
-                            className="btn-metal btn-metal--silver px-4 py-2 rounded-full text-[10px] tracking-[0.08em] text-slate-900"
+                            onClick={() => setGalleryFilterLabel('100')}
+                            className="btn-metal px-4 py-2 rounded-full text-[10px] transition-all"
+                            style={getGalleryFilterButtonStyle('100', galleryFilterLabel === '100')}
                         >
-                            {galleryViewMode === 'ETIQUETA' ? 'Mostrar todas' : 'Limpiar'}
+                            100%
                         </button>
                     </div>
 
