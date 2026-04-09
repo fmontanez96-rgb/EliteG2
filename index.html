@@ -451,7 +451,7 @@
         const GALLERY_VIEW_MODE_LABELS = {
             PERSONAJE: 'Personaje',
             ETIQUETA: 'Etiqueta',
-            CARPETA: 'Carpeta',
+            CARPETA: 'Carpetas',
             GENERAL: 'General'
         };
         const BATTLE_PHOTO_SLOTS = [
@@ -1886,6 +1886,13 @@ const getInitialCatFormData = () => ({
             const uniqueNacionalidades = useMemo(() => ['Todas', ...new Set(perfiles.map(p => p.nacionalidad).filter(Boolean))], [perfiles]);
             const uniqueProfesiones = useMemo(() => ['Todas', ...new Set(perfiles.map(p => p.profesion).filter(Boolean))], [perfiles]);
             const uniqueCiudades = useMemo(() => ['Todas', ...new Set(perfiles.map(p => p.ciudad).filter(Boolean))], [perfiles]);
+            const profileCategoryMap = useMemo(() => {
+                return (perfiles || []).reduce((acc, profile) => {
+                    if (!profile?.firebaseId) return acc;
+                    acc[profile.firebaseId] = obtenerCategoriasDePerfil(profile);
+                    return acc;
+                }, {});
+            }, [perfiles, categorias]);
             const allGalleryPhotos = useMemo(() => {
                 return (perfiles || []).flatMap((perfil) => {
                     const galleryItems = [
@@ -1967,26 +1974,25 @@ const getInitialCatFormData = () => ({
                         .filter(bucket => bucket.photos.length > 0);
                 }
 
-                const groupedByFolder = allGalleryPhotos.reduce((acc, photo) => {
-                    const key = String(photo.profesion || 'Sin carpeta');
-                    if (!acc[key]) {
-                        acc[key] = {
-                            id: `CARPETA-${key}`,
-                            nombre: key,
-                            profesion: 'Carpeta',
-                            nacionalidad: '',
-                            fotoPerfil: photo.fotoPerfil || photo.url,
-                            photos: []
-                        };
-                    }
-                    acc[key].photos.push(photo);
-                    return acc;
-                }, {});
+                return (categorias || [])
+                    .map((categoria) => {
+                        const categoryPhotos = allGalleryPhotos.filter((photo) => {
+                            if (!photo.profileId) return false;
+                            return (profileCategoryMap[photo.profileId] || []).includes(categoria.firebaseId);
+                        });
 
-                return Object.values(groupedByFolder)
+                        return {
+                            id: `CARPETA-${categoria.firebaseId}`,
+                            nombre: categoria.label || 'Carpeta sin nombre',
+                            profesion: 'Categoría',
+                            nacionalidad: '',
+                            fotoPerfil: categoria.coverImg || categoryPhotos[0]?.fotoPerfil || categoryPhotos[0]?.url || '',
+                            photos: categoryPhotos
+                        };
+                    })
                     .filter(bucket => bucket.photos.length > 0)
                     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
-            }, [allGalleryPhotos, galleryViewMode]);
+            }, [allGalleryPhotos, categorias, galleryViewMode, profileCategoryMap]);
             const activeGalleryBucket = useMemo(() => {
                 if (galleryViewMode === 'GENERAL') return galleryBuckets[0] || null;
                 if (!selectedGalleryBucket) return null;
