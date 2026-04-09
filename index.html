@@ -1521,6 +1521,8 @@
             const [isGalleryPlaying, setIsGalleryPlaying] = useState(false);
             const [isGalleryRandom, setIsGalleryRandom] = useState(false);
             const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+            const [isEditingGalleryLabel, setIsEditingGalleryLabel] = useState(false);
+            const [galleryLabelDraft, setGalleryLabelDraft] = useState('');
             const galleryPlaybackTimeoutRef = useRef(null);
 
             const [filters, setFilters] = useState({
@@ -1605,6 +1607,33 @@ const getInitialCatFormData = () => ({
                     }
                 } catch (error) {
                     console.error('Error al guardar archivo en galería:', error);
+                }
+            };
+            const updateGalleryItemLabel = async ({ profileId, sourceTag, sourceIndex, label }) => {
+                if (!profileId || !sourceTag || !Number.isInteger(sourceIndex)) return;
+                const normalizedLabel = GALLERY_LABELS.includes(label) ? label : '';
+                const galleryRef = db.ref(`perfiles/${profileId}/galeria/${sourceTag}`);
+                const snapshot = await galleryRef.once('value');
+                const currentItems = Array.isArray(snapshot.val()) ? snapshot.val() : [];
+                if (!currentItems[sourceIndex]) return;
+
+                const updatedItems = [...currentItems];
+                const normalizedItem = normalizeGalleryItem(updatedItems[sourceIndex], sourceTag === 'videos' ? 'video' : 'image');
+                updatedItems[sourceIndex] = {
+                    ...normalizedItem,
+                    label: normalizedLabel
+                };
+
+                await galleryRef.set(updatedItems);
+
+                if (profileId === editingId) {
+                    setFormData(prev => ({
+                        ...prev,
+                        galeria: {
+                            ...(prev.galeria || { fotos: [], gifs: [], videos: [] }),
+                            [sourceTag]: updatedItems
+                        }
+                    }));
                 }
             };
             const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
@@ -1890,9 +1919,27 @@ const getInitialCatFormData = () => ({
             const allGalleryPhotos = useMemo(() => {
                 return (perfiles || []).flatMap((perfil) => {
                     const galleryItems = [
-                        ...(Array.isArray(perfil?.galeria?.fotos) ? perfil.galeria.fotos.map(item => normalizeGalleryItem(item, 'image')) : []),
-                        ...(Array.isArray(perfil?.galeria?.gifs) ? perfil.galeria.gifs.map(item => normalizeGalleryItem(item, 'image')) : []),
-                        ...(Array.isArray(perfil?.galeria?.videos) ? perfil.galeria.videos.map(item => normalizeGalleryItem(item, 'video')) : [])
+                        ...(Array.isArray(perfil?.galeria?.fotos)
+                            ? perfil.galeria.fotos.map((item, sourceIndex) => ({
+                                ...normalizeGalleryItem(item, 'image'),
+                                sourceTag: 'fotos',
+                                sourceIndex
+                            }))
+                            : []),
+                        ...(Array.isArray(perfil?.galeria?.gifs)
+                            ? perfil.galeria.gifs.map((item, sourceIndex) => ({
+                                ...normalizeGalleryItem(item, 'image'),
+                                sourceTag: 'gifs',
+                                sourceIndex
+                            }))
+                            : []),
+                        ...(Array.isArray(perfil?.galeria?.videos)
+                            ? perfil.galeria.videos.map((item, sourceIndex) => ({
+                                ...normalizeGalleryItem(item, 'video'),
+                                sourceTag: 'videos',
+                                sourceIndex
+                            }))
+                            : [])
                     ];
 
                     return galleryItems
@@ -1910,7 +1957,9 @@ const getInitialCatFormData = () => ({
                                 profesion: perfil.profesion || 'Perfil',
                                 nacionalidad: perfil.nacionalidad || '',
                                 fotoPerfil: perfil.fotos?.[0] || normalizedItem.url,
-                                profileId: perfil.firebaseId
+                                profileId: perfil.firebaseId,
+                                sourceTag: item.sourceTag || (normalizedItem.type === 'video' ? 'videos' : 'fotos'),
+                                sourceIndex: Number.isInteger(item.sourceIndex) ? item.sourceIndex : index
                             };
                         })
                         .filter(Boolean);
@@ -2038,6 +2087,16 @@ const getInitialCatFormData = () => ({
                 : filteredGalleryPhotos[clampIndex(selectedGalleryIndex, filteredGalleryPhotos.length)] || null;
 
             useEffect(() => {
+                if (!selectedGalleryPhoto) {
+                    setIsEditingGalleryLabel(false);
+                    setGalleryLabelDraft('');
+                    return;
+                }
+                setIsEditingGalleryLabel(false);
+                setGalleryLabelDraft(selectedGalleryPhoto.label || '');
+            }, [selectedGalleryPhoto]);
+
+            useEffect(() => {
                 if (activeTab !== 'GALERIA') {
                     setSelectedGalleryBucket(null);
                     setSelectedGalleryIndex(null);
@@ -2139,6 +2198,20 @@ const getInitialCatFormData = () => ({
             };
             const showNextGalleryPhoto = () => setSelectedGalleryIndex((current) => getNextPlayableIndex(current, filteredGalleryPhotos, isGalleryRandom));
             const showPreviousGalleryPhoto = () => setSelectedGalleryIndex((current) => clampIndex((current ?? 0) - 1, filteredGalleryPhotos.length));
+            const saveSelectedGalleryLabel = async () => {
+                if (!selectedGalleryPhoto?.profileId || !selectedGalleryPhoto?.sourceTag || !Number.isInteger(selectedGalleryPhoto?.sourceIndex)) return;
+                try {
+                    await updateGalleryItemLabel({
+                        profileId: selectedGalleryPhoto.profileId,
+                        sourceTag: selectedGalleryPhoto.sourceTag,
+                        sourceIndex: selectedGalleryPhoto.sourceIndex,
+                        label: galleryLabelDraft
+                    });
+                    setIsEditingGalleryLabel(false);
+                } catch (error) {
+                    console.error('Error al actualizar etiqueta de la multimedia:', error);
+                }
+            };
             const galleryContextLabel = useMemo(() => {
                 if (galleryViewMode === 'PERSONAJE') {
                     return selectedCharacterBuckets.length
@@ -3270,9 +3343,49 @@ const saveProfile = (e) => {
                             <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">
                                 {selectedGalleryIndex + 1} de {filteredGalleryPhotos.length} archivos visibles
                             </p>
-                            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-500">
-                                Navegá con las flechas del teclado o los botones inferiores · Respeta el filtro actual
-                            </p>
+                            <div className="flex items-center justify-start sm:justify-end gap-2">
+                                {isEditingGalleryLabel ? (
+                                    <>
+                                        <select
+                                            value={galleryLabelDraft}
+                                            onChange={(event) => setGalleryLabelDraft(event.target.value)}
+                                            className="bg-slate-900 border theme-border-secondary rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white focus:outline-none focus:border-[var(--metal-gold)]"
+                                        >
+                                            <option value="">Sin etiqueta</option>
+                                            {GALLERY_LABELS.map((label) => (
+                                                <option key={label} value={label}>{label}</option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            type="button"
+                                            onClick={saveSelectedGalleryLabel}
+                                            className="px-2 py-1 rounded-lg border theme-border-secondary bg-slate-900 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--metal-gold)] hover:border-[var(--metal-gold)] transition-all"
+                                        >
+                                            Guardar
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setGalleryLabelDraft(selectedGalleryPhoto?.label || '');
+                                                setIsEditingGalleryLabel(false);
+                                            }}
+                                            className="px-2 py-1 rounded-lg border theme-border-secondary bg-slate-900 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300 hover:text-white transition-all"
+                                        >
+                                            Cancelar
+                                        </button>
+                                    </>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsEditingGalleryLabel(true)}
+                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border theme-border-secondary bg-slate-900 text-[10px] font-black uppercase tracking-[0.16em] text-slate-300 hover:border-[var(--metal-gold)] hover:text-[var(--metal-gold)] transition-all"
+                                        aria-label="Editar etiqueta de la multimedia"
+                                    >
+                                        <span className="text-xs leading-none">✏️</span>
+                                        <span>{selectedGalleryPhoto?.label || 'Sin etiqueta'}</span>
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
