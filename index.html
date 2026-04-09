@@ -2826,8 +2826,12 @@ const saveProfile = (e) => {
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                                {[...new Set(perfiles.map(p => p.profesion || 'Perfil'))].map(prof => {
-                                    const count = perfiles.filter(p => (p.profesion || 'Perfil') === prof).length;
+                                {[...new Set(
+                                    (perfiles || [])
+                                        .map(p => String(p?.profesion || '').trim())
+                                        .filter(Boolean)
+                                )].map(prof => {
+                                    const count = (perfiles || []).filter(p => String(p?.profesion || '').trim() === prof).length;
 
                                     return (
                                         <div
@@ -2880,7 +2884,7 @@ const saveProfile = (e) => {
             return misCategorias.includes(selectedCategory);
         }
         // Si estamos en Explorar (por profesión):
-        return String(p.profesion || 'Perfil').trim().toLowerCase() === String(selectedCategory).trim().toLowerCase();
+        return String(p.profesion || '').trim().toLowerCase() === String(selectedCategory).trim().toLowerCase();
     }).map(p => {
                     const profKey = p.profesion?.toUpperCase() || 'DEFAULT';
                     const neonClass = (typeof neonColors !== 'undefined' && neonColors[profKey]) ? neonColors[profKey] : { color: '#06b6d4', sombra: 'rgba(6,182,212,0.5)' };
