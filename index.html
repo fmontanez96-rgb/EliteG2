@@ -9,8 +9,6 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap');
 
@@ -1870,10 +1868,10 @@ const getInitialCatFormData = () => ({
                             ? true
                             : photo.label === galleryFilterLabel;
                     const matchesQuery = !query
-                        || photo.nombre.toLowerCase().includes(query)
-                        || photo.profesion.toLowerCase().includes(query)
-                        || (photo.nacionalidad || '').toLowerCase().includes(query)
-                        || (photo.label || '').toLowerCase().includes(query);
+                        || String(photo.nombre || '').toLowerCase().includes(query)
+                        || String(photo.profesion || '').toLowerCase().includes(query)
+                        || String(photo.nacionalidad || '').toLowerCase().includes(query)
+                        || String(photo.label || '').toLowerCase().includes(query);
 
                     return matchesLabel && matchesQuery;
                 });
@@ -2312,7 +2310,7 @@ const saveProfile = (e) => {
             };
 
             const filteredProfiles = useMemo(() => {
-                let base = perfiles.filter(p => p.nombre.toLowerCase().includes(searchQuery.toLowerCase()));
+                let base = perfiles.filter(p => String(p?.nombre || '').toLowerCase().includes(searchQuery.toLowerCase()));
 
                 if (activeTab === 'RANKING') {
                     return base.filter(p => {
